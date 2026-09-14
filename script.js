@@ -588,3 +588,17 @@ const introLineDelay = 2200;
   window.addEventListener("load", showInView);
 
 })();
+document.addEventListener("contextmenu", e => e.preventDefault());
+
+document.addEventListener("keydown", e => {
+    const key = e.key.toLowerCase();
+
+    if (
+        (e.ctrlKey && key === "u") ||
+        (e.ctrlKey && e.shiftKey && (key === "i" || key === "j")) ||
+        e.key === "F12" ||
+        (e.ctrlKey && key === "s")
+    ) {
+        e.preventDefault();
+    }
+});
