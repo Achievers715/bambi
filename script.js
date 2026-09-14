@@ -584,7 +584,73 @@ const introLineDelay = 2200;
     }
   });
 
+  /* =====================================================================
+     AUTO SLIDESHOW
+     >>> CHANGE HOW LONG EACH PHOTO STAYS UP (milliseconds) <
+     ===================================================================== */
+  const SLIDE_DELAY = 4000;
 
+  const slider = $("#slider");
+
+  if (slider) {
+    const track = $("#sliderTrack");
+    const dotBox = $("#sliderDots");
+    const slides = Array.from(track.children);
+
+    let at = 0;
+    let auto = null;
+
+    // Show a placeholder for any photo not added yet
+    slides.forEach((s) => {
+      const img = s.querySelector("img");
+      const flag = () => s.classList.add("empty");
+      img.addEventListener("error", flag);
+      if (img.complete && img.naturalWidth === 0) flag();
+    });
+
+    // Build the dots from however many slides there are
+    slides.forEach((_, i) => {
+      const d = document.createElement("button");
+      d.type = "button";
+      d.className = "slider__dot" + (i === 0 ? " active" : "");
+      d.setAttribute("aria-label", "Photo " + (i + 1));
+      d.addEventListener("click", () => { go(i); restart(); });
+      dotBox.appendChild(d);
+    });
+
+    const dots = Array.from(dotBox.children);
+
+    function go(i) {
+      at = (i + slides.length) % slides.length;
+      track.style.transform = "translateX(-" + at * 100 + "%)";
+      dots.forEach((d, n) => d.classList.toggle("active", n === at));
+    }
+
+    function start() { if (!auto && !slow) auto = setInterval(() => go(at + 1), SLIDE_DELAY); }
+    function stop()  { clearInterval(auto); auto = null; }
+    function restart() { stop(); start(); }
+
+    $("#slPrev").addEventListener("click", () => { go(at - 1); restart(); });
+    $("#slNext").addEventListener("click", () => { go(at + 1); restart(); });
+
+    // Pause while she's looking at it or while the tab is in the background
+    slider.addEventListener("mouseenter", stop);
+    slider.addEventListener("mouseleave", start);
+    document.addEventListener("visibilitychange", () => document.hidden ? stop() : start());
+
+    // Swipe on phones
+    let x0 = null;
+    slider.addEventListener("touchstart", (e) => { x0 = e.touches[0].clientX; stop(); }, { passive: true });
+    slider.addEventListener("touchend", (e) => {
+      if (x0 === null) return;
+      const dx = e.changedTouches[0].clientX - x0;
+      if (Math.abs(dx) > 45) go(dx < 0 ? at + 1 : at - 1);
+      x0 = null;
+      start();
+    });
+
+    start();
+  }
   window.addEventListener("load", showInView);
 
 })();
