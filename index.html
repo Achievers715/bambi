@@ -283,35 +283,86 @@
 
 
  
-  <section class="sec" id="gallery">
-    <div class="wrap">
-      <p class="eyebrow eyebrow--center rv">a few favourites</p>
-      <h2 class="h2 h2--center rv">A Little Gallery For Bambi 📸</h2>
-      <p class="hint rv">Tap a photo to open it.</p>
+  <!-- ==================== AUTO SLIDESHOW ====================
+     Photos live in assets/. Add or remove <li> items freely —
+     the dots and timing adjust themselves.
+     ========================================================= -->
+<section class="sec" id="slideshow">
+  <div class="wrap">
+    <p class="eyebrow eyebrow--center rv">on repeat</p>
+    <h2 class="h2 h2--center rv">Moments With Bambi</h2>
 
-      <div class="grid">
-        <figure class="ph ph--a rv" data-cap="The smile everyone knows">
-          <img src="bambi-1.jpeg" alt="Bambi" loading="lazy" />
-        </figure>
-        <figure class="ph rv" data-cap="Good days at work">
-          <img src="bambi-2.jpeg" alt="Bambi" loading="lazy" />
-        </figure>
-        <figure class="ph rv" data-cap="Back in school">
-          <img src="bambi-3.jpeg" alt="Bambi" loading="lazy" />
-        </figure>
-        <figure class="ph ph--b rv" data-cap="Laughing at something silly">
-          <img src="bambi-4.jpeg" alt="Bambi" loading="lazy" />
-        </figure>
-        <figure class="ph rv" data-cap="Always dressed well">
-          <img src="bambi-5.jpeg" alt="Bambi" loading="lazy" />
-        </figure>
-        <figure class="ph rv" data-cap="Our kind of person">
-          <img src="bambi-6.jpeg" alt="Bambi" loading="lazy" />
-        </figure>
-      </div>
+    <div class="slider rv" id="slider">
+      <ul class="slider__track" id="sliderTrack">
+        <li class="slider__slide">
+          <img src="bambi-1.jpeg" alt="Bambi" />
+          <span class="slider__cap">The smile everyone knows</span>
+        </li>
+        <li class="slider__slide">
+          <img src="bambi-2.jpeg" alt="Bambi" />
+          <span class="slider__cap">Good days at work</span>
+        </li>
+        <li class="slider__slide">
+          <img src="bambi-3.jpeg" alt="Bambi" />
+          <span class="slider__cap">Back in school</span>
+        </li>
+        <li class="slider__slide">
+          <img src="bambi-4.jpeg" alt="Bambi" />
+          <span class="slider__cap">Laughing at something silly</span>
+        </li>
+        <li class="slider__slide">
+          <img src="bambi-5.jpeg" alt="Bambi" />
+          <span class="slider__cap">Always dressed well</span>
+        </li>
+        <li class="slider__slide">
+          <img src="bambi-6.jpeg" alt="Bambi" />
+          <span class="slider__cap">Our kind of person</span>
+        </li>
+           <li class="slider__slide">
+          <img src="bambi-7.jpeg" alt="Bambi" />
+          <span class="slider__cap">Our kind of person</span>
+        </li>
+           <li class="slider__slide">
+          <img src="bambi-8.jpeg" alt="Bambi" />
+          <span class="slider__cap">Our kind of person</span>
+        </li>
+           <li class="slider__slide">
+          <img src="bambi-9.jpeg" alt="Bambi" />
+          <span class="slider__cap">Our kind of person</span>
+        </li>
+           <li class="slider__slide">
+          <img src="bambi-10.jpeg" alt="Bambi" />
+          <span class="slider__cap">Our kind of person</span>
+        </li>
+           <li class="slider__slide">
+          <img src="bambi-11.jpeg" alt="Bambi" />
+          <span class="slider__cap">Our kind of person</span>
+        </li>
+           <li class="slider__slide">
+          <img src="bambi-12.jpeg" alt="Bambi" />
+          <span class="slider__cap">Our kind of person</span>
+        </li>
+           <li class="slider__slide">
+          <img src="bambi-13.jpeg" alt="Bambi" />
+          <span class="slider__cap">Our kind of person</span>
+        </li>
+           <li class="slider__slide">
+          <img src="bambi-14.jpeg" alt="Bambi" />
+          <span class="slider__cap">Our kind of person</span>
+        </li>
+           <li class="slider__slide">
+          <img src="bambi-15.jpeg" alt="Bambi" />
+          <span class="slider__cap">Our kind of person</span>
+        </li>
+      </ul>
+
+      <button class="slider__arrow slider__arrow--prev" id="slPrev" type="button" aria-label="Previous photo">❮</button>
+      <button class="slider__arrow slider__arrow--next" id="slNext" type="button" aria-label="Next photo">❯</button>
+
+      <div class="slider__dots" id="sliderDots"></div>
     </div>
-  </section>
-
+  </div>
+</section>
 
   <!-- ========================== STORY ========================== -->
   <section class="sec sec--story" id="story">
