@@ -1,22 +1,21 @@
 /* =====================================================================
    HAPPY BIRTHDAY, BAMBI — script.js
-   Plain vanilla JavaScript. No frameworks, no build step.
-   Just open index.html.
+   Plain vanilla JavaScript. No frameworks. Open index.html and it runs.
    ===================================================================== */
 
 
 /* ---------------------------------------------------------------------
-   >>> CHANGE THE BIRTHDAY DATE HERE <<<
-   Format: "YYYY-MM-DDT00:00:00"  (24-hour time, the visitor's own clock)
-
-   Example — 3 October 2026 at midnight:
-   const birthdayDate = "2026-10-03T00:00:00";
+   >>> 1. CHANGE THE BIRTHDAY DATE HERE <<<
+   Format: "YYYY-MM-DDT00:00:00"   (the visitor's own clock)
    --------------------------------------------------------------------- */
 const birthdayDate = "2026-09-15T00:00:00";
 
-/* Optional: how long the intro curtain stays up, in milliseconds.
-   First line shows, then the second line at HALF this time. */
-const introDuration = 4400;
+/* >>> 2. CHANGE THE SONG NAME SHOWN IN THE MUSIC BAR <<<
+   (the audio file itself is assets/birthday-song.mp3) */
+const songTitle = "Happy Birthday";
+
+/* >>> 3. HOW LONG THE FIRST INTRO LINE STAYS UP, in milliseconds <<< */
+const introLineDelay = 2200;
 
 /* --------------------------------------------------------------------- */
 
@@ -24,530 +23,568 @@ const introDuration = 4400;
 (function () {
   "use strict";
 
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const $  = (sel) => document.querySelector(sel);
-  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+  const $  = (s) => document.querySelector(s);
+  const $$ = (s) => Array.from(document.querySelectorAll(s));
+  const slow = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 
   /* =====================================================================
-     1. INTRO CURTAIN
+     MUSIC
+     Browsers only allow sound after a real tap, so the music starts on the
+     "Enter Birthday Surprise" button. If anything blocks it, we quietly
+     wait and try again on her very next tap or scroll.
      ===================================================================== */
-  const intro     = $("#intro");
-  const lineOne   = $("#introLineOne");
-  const lineTwo   = $("#introLineTwo");
-  const skipBtn   = $("#introSkip");
-  const site      = $("#site");
+  const song       = $("#song");
+  const musicbar   = $("#musicbar");
+  const musicBtn   = $("#musicToggle");
+  const musicIcon  = $("#musicIcon");
+  const musicTrack = $("#musicTrack");
 
-  let introFinished = false;
-  let introTimers = [];
+  let musicOk     = true;   // is the file usable
+  let pausedByHer = false;  // did she press pause herself
 
-  function startIntro() {
-    if (reduceMotion) {
-      endIntro();
-      return;
+  musicTrack.textContent = songTitle;
+  song.volume = 0.5;
+
+  song.addEventListener("error", failMusic);
+
+  function failMusic() {
+    musicOk = false;
+    musicbar.classList.remove("playing");
+    musicTrack.textContent = "No music file yet";
+    musicBtn.disabled = true;
+    musicbar.style.opacity = ".55";
+  }
+
+  function showPlaying(on) {
+    musicbar.classList.toggle("playing", on);
+    musicIcon.textContent = on ? "❚❚" : "▶";
+    musicBtn.setAttribute("aria-label", on ? "Pause music" : "Play music");
+  }
+
+  function playMusic() {
+    if (!musicOk) return;
+
+    const p = song.play();
+    if (!p || typeof p.then !== "function") { showPlaying(true); return; }
+
+    p.then(() => showPlaying(true)).catch(() => {
+      showPlaying(false);
+      armAutoStart();   // blocked — retry on her next interaction
+    });
+  }
+
+  let armed = false;
+  function armAutoStart() {
+    if (armed) return;
+    armed = true;
+
+    const kick = () => {
+      if (pausedByHer || !song.paused) return cleanup();
+      song.play().then(() => { showPlaying(true); cleanup(); }).catch(() => {});
+    };
+
+    function cleanup() {
+      ["pointerdown", "touchstart", "keydown", "scroll"].forEach((ev) =>
+        window.removeEventListener(ev, kick)
+      );
+      armed = false;
     }
 
-    introTimers.push(setTimeout(() => lineOne.classList.add("is-on"), 250));
-
-    // Swap to the second line halfway through
-    introTimers.push(setTimeout(() => {
-      lineOne.classList.remove("is-on");
-      lineOne.classList.add("is-off");
-      lineTwo.classList.add("is-on");
-    }, introDuration / 2));
-
-    introTimers.push(setTimeout(endIntro, introDuration));
+    ["pointerdown", "touchstart", "keydown", "scroll"].forEach((ev) =>
+      window.addEventListener(ev, kick, { passive: true })
+    );
   }
 
-  function endIntro() {
-    if (introFinished) return;
-    introFinished = true;
+  musicBtn.addEventListener("click", () => {
+    if (!musicOk) return;
 
-    introTimers.forEach(clearTimeout);
-    introTimers = [];
-
-    intro.classList.add("is-gone");
-    document.body.classList.remove("intro-locked");
-    site.classList.add("is-revealed");
-
-    // Let the hero animate in once the curtain is out of the way
-    setTimeout(revealInView, 120);
-
-    // Move keyboard focus onto the page
-    setTimeout(() => { if (intro) intro.setAttribute("hidden", ""); }, 1000);
-  }
-
-  skipBtn.addEventListener("click", endIntro);
-  document.addEventListener("keydown", (e) => {
-    if (!introFinished && (e.key === "Enter" || e.key === "Escape" || e.key === " ")) endIntro();
+    if (song.paused) {
+      pausedByHer = false;
+      playMusic();
+    } else {
+      pausedByHer = true;
+      song.pause();
+      showPlaying(false);
+    }
   });
+
+  showPlaying(false);
 
 
   /* =====================================================================
-     2. SCROLL REVEAL
-     Elements with class "reveal" fade up the first time they appear.
+     INTRO CURTAIN
      ===================================================================== */
-  const revealEls = $$(".reveal");
+  const intro   = $("#intro");
+  const lineOne = $("#introLineOne");
+  const lineTwo = $("#introLineTwo");
+  const enterBtn = $("#introEnter");
+  const site    = $("#site");
 
-  let observer = null;
+  let entered = false;
 
-  if ("IntersectionObserver" in window && !reduceMotion) {
-    observer = new IntersectionObserver((entries, obs) => {
-      entries.forEach((entry) => {
-        if (!entry.isIntersecting) return;
+  setTimeout(() => lineOne.classList.add("on"), 300);
 
-        // Small stagger between siblings so groups arrive gracefully
-        const siblings = Array.from(entry.target.parentElement.children)
-          .filter((el) => el.classList.contains("reveal"));
-        const delay = Math.min(siblings.indexOf(entry.target), 6) * 90;
+  setTimeout(() => {
+    lineOne.classList.remove("on");
+    lineOne.classList.add("off");
+    lineTwo.classList.add("on");
+  }, introLineDelay + 300);
 
-        setTimeout(() => entry.target.classList.add("is-visible"), delay);
-        obs.unobserve(entry.target);
+  function enter() {
+    if (entered) return;
+    entered = true;
+
+    playMusic();                       // <- the tap that unlocks sound
+
+    intro.classList.add("gone");
+    document.body.classList.remove("is-locked");
+    site.classList.add("on");
+
+    setTimeout(() => { intro.hidden = true; }, 1000);
+    setTimeout(showInView, 150);
+  }
+
+  enterBtn.addEventListener("click", enter);
+
+
+  /* =====================================================================
+     SCROLL REVEAL
+     ===================================================================== */
+  const revealEls = $$(".rv");
+  let io = null;
+
+  if ("IntersectionObserver" in window && !slow) {
+    io = new IntersectionObserver((entries, obs) => {
+      entries.forEach((e) => {
+        if (!e.isIntersecting) return;
+
+        const sibs = Array.from(e.target.parentElement.children).filter((el) =>
+          el.classList.contains("rv")
+        );
+        const delay = Math.min(sibs.indexOf(e.target), 6) * 85;
+
+        setTimeout(() => e.target.classList.add("on"), delay);
+        obs.unobserve(e.target);
       });
     }, { threshold: 0.12, rootMargin: "0px 0px -8% 0px" });
 
-    revealEls.forEach((el) => observer.observe(el));
+    revealEls.forEach((el) => io.observe(el));
   } else {
-    revealEls.forEach((el) => el.classList.add("is-visible"));
+    revealEls.forEach((el) => el.classList.add("on"));
   }
 
-  // Force-check anything already on screen (used right after the intro)
-  function revealInView() {
-    if (!introFinished) return;
+  function showInView() {
+    if (!entered) return;
     revealEls.forEach((el) => {
-      if (el.classList.contains("is-visible")) return;
-      const rect = el.getBoundingClientRect();
-      if (rect.top < window.innerHeight * 0.92) {
-        el.classList.add("is-visible");
-        if (observer) observer.unobserve(el);
+      if (el.classList.contains("on")) return;
+      if (el.getBoundingClientRect().top < window.innerHeight * 0.92) {
+        el.classList.add("on");
+        if (io) io.unobserve(el);
       }
     });
   }
 
 
   /* =====================================================================
-     3. SMOOTH SCROLL (hero button)
+     SMOOTH SCROLL + PROGRESS BAR
      ===================================================================== */
-  $$("[data-scroll]").forEach((link) => {
-    link.addEventListener("click", (e) => {
-      const target = document.querySelector(link.getAttribute("href"));
-      if (!target) return;
+  $$("[data-scroll]").forEach((a) => {
+    a.addEventListener("click", (e) => {
+      const t = document.querySelector(a.getAttribute("href"));
+      if (!t) return;
       e.preventDefault();
-      target.scrollIntoView({
-        behavior: reduceMotion ? "auto" : "smooth",
-        block: "start"
-      });
+      t.scrollIntoView({ behavior: slow ? "auto" : "smooth", block: "start" });
     });
   });
 
+  const bar = $("#progressBar");
 
-  /* =====================================================================
-     4. SCROLL PROGRESS BAR
-     ===================================================================== */
-  const progressBar = $("#progressBar");
-
-  function updateProgress() {
-    const scrollable = document.documentElement.scrollHeight - window.innerHeight;
-    const pct = scrollable > 0 ? (window.scrollY / scrollable) * 100 : 0;
-    progressBar.style.width = Math.min(100, Math.max(0, pct)) + "%";
+  function progress() {
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (max > 0 ? Math.min(100, (window.scrollY / max) * 100) : 0) + "%";
   }
 
-  window.addEventListener("scroll", updateProgress, { passive: true });
-  window.addEventListener("resize", updateProgress);
-  updateProgress();
+  window.addEventListener("scroll", progress, { passive: true });
+  window.addEventListener("resize", progress);
+  progress();
 
 
   /* =====================================================================
-     5. HERO PARTICLES
-     Soft drifting lights behind the hero. Pauses when out of view.
+     NIGHT SKY BEHIND THE HERO
      ===================================================================== */
-  const canvas = $("#particles");
-  const hero   = $("#hero");
+  const sky = $("#sky");
 
-  if (canvas && !reduceMotion) {
-    const ctx = canvas.getContext("2d");
-    let particles = [];
-    let raf = null;
-    let heroVisible = true;
+  if (sky && !slow) {
+    const ctx = sky.getContext("2d");
+    let stars = [], embers = [], raf = null, visible = true;
 
-    const COLORS = ["rgba(193,128,140,", "rgba(176,134,64,", "rgba(228,211,194,"];
-
-    function sizeCanvas() {
+    function size() {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width  = canvas.offsetWidth  * dpr;
-      canvas.height = canvas.offsetHeight * dpr;
+      sky.width  = sky.offsetWidth  * dpr;
+      sky.height = sky.offsetHeight * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      buildParticles();
+      build();
     }
 
-    function buildParticles() {
-      const area  = canvas.offsetWidth * canvas.offsetHeight;
-      const count = Math.min(46, Math.max(18, Math.round(area / 16000)));
-      particles = [];
+    function build() {
+      const w = sky.offsetWidth, h = sky.offsetHeight;
+      const n = Math.min(70, Math.max(28, Math.round((w * h) / 13000)));
 
-      for (let i = 0; i < count; i++) {
-        particles.push({
-          x: Math.random() * canvas.offsetWidth,
-          y: Math.random() * canvas.offsetHeight,
-          r: Math.random() * 2.4 + 0.8,
-          vx: (Math.random() - 0.5) * 0.18,
-          vy: -(Math.random() * 0.26 + 0.07),
-          alpha: Math.random() * 0.4 + 0.18,
-          twinkle: Math.random() * Math.PI * 2,
-          color: COLORS[Math.floor(Math.random() * COLORS.length)]
+      stars = [];
+      for (let i = 0; i < n; i++) {
+        stars.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          r: Math.random() * 1.3 + 0.3,
+          a: Math.random() * 0.5 + 0.2,
+          t: Math.random() * Math.PI * 2,
+          s: Math.random() * 0.02 + 0.006
+        });
+      }
+
+      embers = [];
+      for (let i = 0; i < 12; i++) {
+        embers.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          r: Math.random() * 2.6 + 1.4,
+          vy: -(Math.random() * 0.22 + 0.06),
+          vx: (Math.random() - 0.5) * 0.14,
+          a: Math.random() * 0.4 + 0.2
         });
       }
     }
 
-    function draw() {
-      ctx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
+    function frame() {
+      const w = sky.offsetWidth, h = sky.offsetHeight;
+      ctx.clearRect(0, 0, w, h);
 
-      particles.forEach((p) => {
-        p.x += p.vx;
-        p.y += p.vy;
-        p.twinkle += 0.015;
-
-        if (p.y < -10) { p.y = canvas.offsetHeight + 10; p.x = Math.random() * canvas.offsetWidth; }
-        if (p.x < -10) p.x = canvas.offsetWidth + 10;
-        if (p.x > canvas.offsetWidth + 10) p.x = -10;
-
-        const a = p.alpha * (0.65 + 0.35 * Math.sin(p.twinkle));
-
+      stars.forEach((s) => {
+        s.t += s.s;
+        const a = s.a * (0.55 + 0.45 * Math.sin(s.t));
         ctx.beginPath();
-        ctx.fillStyle = p.color + a.toFixed(3) + ")";
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(243,239,230," + a.toFixed(3) + ")";
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
         ctx.fill();
       });
 
-      raf = requestAnimationFrame(draw);
+      embers.forEach((e) => {
+        e.x += e.vx;
+        e.y += e.vy;
+        if (e.y < -20) { e.y = h + 20; e.x = Math.random() * w; }
+
+        const g = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, e.r * 6);
+        g.addColorStop(0, "rgba(255,190,110," + e.a.toFixed(3) + ")");
+        g.addColorStop(1, "rgba(255,159,90,0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.r * 6, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      raf = requestAnimationFrame(frame);
     }
 
-    function startLoop() { if (!raf) raf = requestAnimationFrame(draw); }
-    function stopLoop()  { if (raf) { cancelAnimationFrame(raf); raf = null; } }
+    const start = () => { if (!raf) raf = requestAnimationFrame(frame); };
+    const stop  = () => { if (raf) { cancelAnimationFrame(raf); raf = null; } };
 
-    sizeCanvas();
-    startLoop();
-
-    window.addEventListener("resize", sizeCanvas);
+    size();
+    start();
+    window.addEventListener("resize", size);
 
     if ("IntersectionObserver" in window) {
-      new IntersectionObserver((entries) => {
-        heroVisible = entries[0].isIntersecting;
-        heroVisible ? startLoop() : stopLoop();
-      }, { threshold: 0.02 }).observe(hero);
+      new IntersectionObserver((en) => {
+        visible = en[0].isIntersecting;
+        visible ? start() : stop();
+      }, { threshold: 0.02 }).observe($("#hero"));
     }
 
     document.addEventListener("visibilitychange", () => {
-      document.hidden || !heroVisible ? stopLoop() : startLoop();
+      document.hidden || !visible ? stop() : start();
     });
   }
 
 
   /* =====================================================================
-     6. CONFETTI
-     Used by the countdown and the surprise button.
+     CONFETTI
      ===================================================================== */
-  const confettiCanvas = $("#confetti");
-  const cctx = confettiCanvas.getContext("2d");
-  let pieces = [];
-  let confettiRaf = null;
+  const cCanvas = $("#confetti");
+  const cctx = cCanvas.getContext("2d");
+  let bits = [], cRaf = null;
 
-  const CONFETTI_COLORS = ["#C1808C", "#B08640", "#E4D3C2", "#F0DCDD", "#FBF7F1", "#8E6B5C"];
+  const CONFETTI = ["#E9B44C", "#F6DCA0", "#FF9F5A", "#F3EFE6", "#C9A9E8", "#8B82A0"];
 
-  function sizeConfetti() {
+  function sizeC() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    confettiCanvas.width  = window.innerWidth  * dpr;
-    confettiCanvas.height = window.innerHeight * dpr;
+    cCanvas.width  = window.innerWidth * dpr;
+    cCanvas.height = window.innerHeight * dpr;
     cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
-  sizeConfetti();
-  window.addEventListener("resize", sizeConfetti);
+  sizeC();
+  window.addEventListener("resize", sizeC);
 
-  function launchConfetti(amount) {
-    if (reduceMotion) return;
+  function confetti(n) {
+    if (slow) return;
 
-    const total = amount || 90;
-    const w = window.innerWidth;
-
-    for (let i = 0; i < total; i++) {
-      pieces.push({
-        x: Math.random() * w,
-        y: -20 - Math.random() * window.innerHeight * 0.4,
+    for (let i = 0; i < (n || 90); i++) {
+      bits.push({
+        x: Math.random() * window.innerWidth,
+        y: -20 - Math.random() * window.innerHeight * 0.45,
         w: Math.random() * 7 + 4,
-        h: Math.random() * 10 + 5,
-        vy: Math.random() * 2.2 + 1.6,
-        vx: (Math.random() - 0.5) * 1.6,
+        h: Math.random() * 11 + 5,
+        vy: Math.random() * 2.2 + 1.7,
+        vx: (Math.random() - 0.5) * 1.7,
         rot: Math.random() * Math.PI,
-        vr: (Math.random() - 0.5) * 0.14,
-        color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+        vr: (Math.random() - 0.5) * 0.15,
+        c: CONFETTI[Math.floor(Math.random() * CONFETTI.length)],
         life: 1
       });
     }
 
-    if (!confettiRaf) confettiRaf = requestAnimationFrame(runConfetti);
+    if (!cRaf) cRaf = requestAnimationFrame(runC);
   }
 
-  function runConfetti() {
+  function runC() {
     cctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    bits = bits.filter((b) => b.y < window.innerHeight + 40 && b.life > 0);
 
-    pieces = pieces.filter((p) => p.y < window.innerHeight + 40 && p.life > 0);
-
-    pieces.forEach((p) => {
-      p.x += p.vx;
-      p.y += p.vy;
-      p.vy += 0.015;
-      p.rot += p.vr;
-
-      if (p.y > window.innerHeight * 0.75) p.life -= 0.012;
+    bits.forEach((b) => {
+      b.x += b.vx; b.y += b.vy; b.vy += 0.015; b.rot += b.vr;
+      if (b.y > window.innerHeight * 0.72) b.life -= 0.012;
 
       cctx.save();
-      cctx.translate(p.x, p.y);
-      cctx.rotate(p.rot);
-      cctx.globalAlpha = Math.max(0, p.life);
-      cctx.fillStyle = p.color;
-      cctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      cctx.translate(b.x, b.y);
+      cctx.rotate(b.rot);
+      cctx.globalAlpha = Math.max(0, b.life);
+      cctx.fillStyle = b.c;
+      cctx.fillRect(-b.w / 2, -b.h / 2, b.w, b.h);
       cctx.restore();
     });
 
-    if (pieces.length) {
-      confettiRaf = requestAnimationFrame(runConfetti);
+    if (bits.length) {
+      cRaf = requestAnimationFrame(runC);
     } else {
       cctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-      confettiRaf = null;
+      cRaf = null;
     }
   }
 
 
   /* =====================================================================
-     7. COUNTDOWN
-     Uses the birthdayDate value at the top of this file.
+     COUNTDOWN
      ===================================================================== */
-  const liveBox = $("#countdownLive");
-  const doneBox = $("#countdownDone");
-  const fields  = {
-    days:    $("#cdDays"),
-    hours:   $("#cdHours"),
-    minutes: $("#cdMinutes"),
-    seconds: $("#cdSeconds")
-  };
+  const cdLive = $("#cdLive");
+  const cdDone = $("#cdDone");
+  const F = { d: $("#cdD"), h: $("#cdH"), m: $("#cdM"), s: $("#cdS") };
 
   const target = new Date(birthdayDate).getTime();
-  let countdownTimer = null;
-  let celebrated = false;
+  let timer = null, done = false;
 
-  function pad(n) { return String(n).padStart(2, "0"); }
+  const pad = (n) => String(n).padStart(2, "0");
 
-  function setField(el, value) {
-    const next = pad(value);
+  function put(el, v) {
+    const next = pad(v);
     if (el.textContent === next) return;
-
     el.textContent = next;
-
-    if (!reduceMotion) {
-      el.classList.add("is-ticking");
-      setTimeout(() => el.classList.remove("is-ticking"), 260);
+    if (!slow) {
+      el.classList.add("tick");
+      setTimeout(() => el.classList.remove("tick"), 260);
     }
   }
 
-  function celebrate(withConfetti) {
-    if (celebrated) return;
-    celebrated = true;
-
-    liveBox.hidden = true;
-    doneBox.hidden = false;
-
-    if (withConfetti) launchConfetti(140);
+  function arrive(withConfetti) {
+    if (done) return;
+    done = true;
+    cdLive.hidden = true;
+    cdDone.hidden = false;
+    if (withConfetti) confetti(140);
   }
 
   function tick() {
-    if (isNaN(target)) {
-      // Bad date string — fail quietly rather than showing NaN
-      liveBox.hidden = true;
-      return;
-    }
+    if (isNaN(target)) { cdLive.hidden = true; return; }
 
     const diff = target - Date.now();
+    if (diff <= 0) { arrive(true); clearInterval(timer); return; }
 
-    if (diff <= 0) {
-      celebrate(true);
-      clearInterval(countdownTimer);
-      return;
-    }
-
-    const secs = Math.floor(diff / 1000);
-
-    setField(fields.days,    Math.floor(secs / 86400));
-    setField(fields.hours,   Math.floor((secs % 86400) / 3600));
-    setField(fields.minutes, Math.floor((secs % 3600) / 60));
-    setField(fields.seconds, secs % 60);
+    const s = Math.floor(diff / 1000);
+    put(F.d, Math.floor(s / 86400));
+    put(F.h, Math.floor((s % 86400) / 3600));
+    put(F.m, Math.floor((s % 3600) / 60));
+    put(F.s, s % 60);
   }
 
-  if (Date.now() >= target && !isNaN(target)) {
-    // The day has already arrived — show the banner straight away,
-    // and save the confetti for when she scrolls to it.
-    celebrate(false);
-
+  if (!isNaN(target) && Date.now() >= target) {
+    arrive(false);
     if ("IntersectionObserver" in window) {
-      const burst = new IntersectionObserver((entries, obs) => {
-        if (entries[0].isIntersecting) {
-          launchConfetti(120);
-          obs.disconnect();
-        }
+      const burst = new IntersectionObserver((en, obs) => {
+        if (en[0].isIntersecting) { confetti(120); obs.disconnect(); }
       }, { threshold: 0.4 });
-      burst.observe($("#countdown"));
+      burst.observe($("#count"));
     }
   } else {
     tick();
-    countdownTimer = setInterval(tick, 1000);
+    timer = setInterval(tick, 1000);
   }
 
 
   /* =====================================================================
-     8. SURPRISE MODAL
+     FLIP CARDS
      ===================================================================== */
-  const modal       = $("#modal");
-  const surpriseBtn = $("#surpriseBtn");
-  const modalClose  = $("#modalClose");
-
-  function openModal() {
-    modal.hidden = false;
-    document.body.classList.add("modal-open");
-
-    // next frame so the transition actually runs
-    requestAnimationFrame(() => modal.classList.add("is-open"));
-
-    launchConfetti(110);
-    setTimeout(() => modalClose.focus(), 420);
-  }
-
-  function closeModal() {
-    modal.classList.remove("is-open");
-    document.body.classList.remove("modal-open");
-    setTimeout(() => { modal.hidden = true; }, 400);
-    surpriseBtn.focus();
-  }
-
-  surpriseBtn.addEventListener("click", openModal);
-  modalClose.addEventListener("click", closeModal);
-  $$("[data-close-modal]").forEach((el) => el.addEventListener("click", closeModal));
+  $$(".flip").forEach((card) => {
+    card.addEventListener("click", () => card.classList.toggle("flipped"));
+  });
 
 
   /* =====================================================================
-     9. GALLERY + LIGHTBOX
-     Photos that have not been added yet show a soft placeholder
-     instead of a broken image.
+     ENVELOPE
      ===================================================================== */
-  const lightbox    = $("#lightbox");
-  const lightboxImg = $("#lightboxImg");
-  const lightboxCap = $("#lightboxCaption");
-  const lightboxX   = $("#lightboxClose");
+  const envelope = $("#envelope");
+  const note = $("#note");
 
-  $$(".photo").forEach((figure) => {
-    const img = figure.querySelector("img");
+  envelope.addEventListener("click", () => {
+    envelope.classList.add("opened");
+    envelope.setAttribute("aria-expanded", "true");
+    note.hidden = false;
+    confetti(40);
+  });
 
-    function markEmpty() { figure.classList.add("is-empty"); }
 
-    img.addEventListener("error", markEmpty);
-    if (img.complete && img.naturalWidth === 0) markEmpty();
+  /* =====================================================================
+     LANTERNS
+     ===================================================================== */
+  const lanterns = $$(".lantern");
+  const lanternHint = $("#lanternHint");
+  const lanternDone = $("#lanternDone");
 
-    figure.setAttribute("tabindex", "0");
-    figure.setAttribute("role", "button");
+  lanterns.forEach((l) => {
+    l.addEventListener("click", () => {
+      if (l.classList.contains("lit")) return;
+      l.classList.add("lit");
 
-    function open() {
-      if (figure.classList.contains("is-empty")) return;
-      lightboxImg.src = img.src;
-      lightboxImg.alt = img.alt;
-      lightboxCap.textContent = figure.querySelector("figcaption").textContent;
-      lightbox.hidden = false;
-      document.body.classList.add("modal-open");
-      requestAnimationFrame(() => lightbox.classList.add("is-open"));
-      setTimeout(() => lightboxX.focus(), 320);
-    }
+      if (lanterns.every((x) => x.classList.contains("lit"))) {
+        lanternHint.hidden = true;
+        lanternDone.hidden = false;
+        confetti(70);
+      }
+    });
+  });
 
-    figure.addEventListener("click", open);
-    figure.addEventListener("keydown", (e) => {
+
+  /* =====================================================================
+     GALLERY + LIGHTBOX
+     ===================================================================== */
+  const lb    = $("#lb");
+  const lbImg = $("#lbImg");
+  const lbCap = $("#lbCap");
+  const photos = $$(".ph");
+  let usable = [];
+  let index = 0;
+
+  photos.forEach((fig) => {
+    const img = fig.querySelector("img");
+    const flagEmpty = () => fig.classList.add("empty");
+
+    img.addEventListener("error", flagEmpty);
+    if (img.complete && img.naturalWidth === 0) flagEmpty();
+
+    fig.setAttribute("tabindex", "0");
+    fig.setAttribute("role", "button");
+
+    const open = () => {
+      if (fig.classList.contains("empty")) return;
+      usable = photos.filter((p) => !p.classList.contains("empty"));
+      index = usable.indexOf(fig);
+      render();
+      lb.hidden = false;
+      document.body.classList.add("is-locked");
+      requestAnimationFrame(() => lb.classList.add("on"));
+    };
+
+    fig.addEventListener("click", open);
+    fig.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); }
     });
   });
 
-  function closeLightbox() {
-    lightbox.classList.remove("is-open");
-    document.body.classList.remove("modal-open");
-    setTimeout(() => { lightbox.hidden = true; lightboxImg.src = ""; }, 320);
+  function render() {
+    const fig = usable[index];
+    if (!fig) return;
+    lbImg.src = fig.querySelector("img").src;
+    lbImg.alt = fig.querySelector("img").alt;
+    lbCap.textContent = fig.dataset.cap || "";
   }
 
-  lightboxX.addEventListener("click", closeLightbox);
-  lightbox.addEventListener("click", (e) => {
-    if (e.target === lightbox) closeLightbox();
-  });
+  function step(n) {
+    if (!usable.length) return;
+    index = (index + n + usable.length) % usable.length;
+    render();
+  }
+
+  function closeLb() {
+    lb.classList.remove("on");
+    document.body.classList.remove("is-locked");
+    setTimeout(() => { lb.hidden = true; lbImg.src = ""; }, 320);
+  }
+
+  $("#lbX").addEventListener("click", closeLb);
+  $("#lbPrev").addEventListener("click", () => step(-1));
+  $("#lbNext").addEventListener("click", () => step(1));
+  lb.addEventListener("click", (e) => { if (e.target === lb) closeLb(); });
 
 
   /* =====================================================================
-     10. ESCAPE KEY closes whatever is open
+     MODALS (surprise + secret note)
+     ===================================================================== */
+  const modal  = $("#modal");
+  const secret = $("#secret");
+
+  function openModal(el, withConfetti) {
+    el.hidden = false;
+    document.body.classList.add("is-locked");
+    requestAnimationFrame(() => el.classList.add("on"));
+    if (withConfetti) confetti(120);
+  }
+
+  function closeModal(el) {
+    el.classList.remove("on");
+    document.body.classList.remove("is-locked");
+    setTimeout(() => { el.hidden = true; }, 400);
+  }
+
+  $("#surpriseBtn").addEventListener("click", () => openModal(modal, true));
+  $("#modalClose").addEventListener("click", () => closeModal(modal));
+  $$("[data-close]").forEach((el) => el.addEventListener("click", () => closeModal(modal)));
+
+  $("#secretTab").addEventListener("click", () => openModal(secret, false));
+  $("#secretClose").addEventListener("click", () => closeModal(secret));
+  $$("[data-close-secret]").forEach((el) => el.addEventListener("click", () => closeModal(secret)));
+
+
+  /* =====================================================================
+     KEYBOARD
      ===================================================================== */
   document.addEventListener("keydown", (e) => {
-    if (e.key !== "Escape") return;
-    if (!lightbox.hidden) closeLightbox();
-    else if (!modal.hidden) closeModal();
-  });
+    if (!entered) {
+      if (e.key === "Enter" || e.key === " ") enter();
+      return;
+    }
 
+    if (!lb.hidden) {
+      if (e.key === "Escape") closeLb();
+      if (e.key === "ArrowLeft") step(-1);
+      if (e.key === "ArrowRight") step(1);
+      return;
+    }
 
-  /* =====================================================================
-     11. MUSIC
-     >>> REPLACE THE SONG: put your file at assets/birthday-song.mp3 <<<
-     If the file is missing, the button quietly steps aside and the rest
-     of the page keeps working.
-     ===================================================================== */
-  const song       = $("#birthdaySong");
-  const musicBtn   = $("#musicBtn");
-  const musicLabel = $("#musicLabel");
-
-  let musicBroken = false;
-
-  song.volume = 0.45;
-
-  song.addEventListener("error", () => {
-    musicBroken = true;
-    musicLabel.textContent = "No music yet";
-    musicBtn.disabled = true;
-    musicBtn.style.opacity = "0.5";
-    musicBtn.classList.remove("is-playing");
-  });
-
-  musicBtn.addEventListener("click", () => {
-    if (musicBroken) return;
-
-    if (song.paused) {
-      const attempt = song.play();
-
-      if (attempt && typeof attempt.then === "function") {
-        attempt
-          .then(() => {
-            musicLabel.textContent = "Pause Music";
-            musicBtn.classList.add("is-playing");
-            musicBtn.setAttribute("aria-pressed", "true");
-          })
-          .catch(() => {
-            musicBroken = true;
-            musicLabel.textContent = "No music yet";
-            musicBtn.disabled = true;
-            musicBtn.style.opacity = "0.5";
-          });
-      }
-    } else {
-      song.pause();
-      musicLabel.textContent = "Play Music";
-      musicBtn.classList.remove("is-playing");
-      musicBtn.setAttribute("aria-pressed", "false");
+    if (e.key === "Escape") {
+      if (!modal.hidden) closeModal(modal);
+      else if (!secret.hidden) closeModal(secret);
     }
   });
 
 
-  /* =====================================================================
-     12. GO
-     ===================================================================== */
-  window.addEventListener("load", revealInView);
-  startIntro();
+  window.addEventListener("load", showInView);
 
 })();
